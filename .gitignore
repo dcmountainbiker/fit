@@ -1,0 +1,35 @@
+# Local data, never commit
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.fit
+*.fit.gz
+
+# Secrets
+.env
+.env.*
+!.env.example
+secrets/
+tokens.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
