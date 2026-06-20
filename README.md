@@ -2,7 +2,7 @@
 
 A simple, local-first tool for cyclists who want to actually own their ride data.
 
-Pulls activities from Strava, parses the underlying `.fit` files (Wahoo, Garmin, etc.), and stores them in a local SQLite database with full per-second telemetry (HR, power, cadence, GPS, elevation). Designed for deep personal analysis, not social comparison.
+Pulls activities from Strava, stores summary + per-second telemetry (HR, power, cadence, GPS, elevation, grade, temp) in a local SQLite database. Designed for personal analysis. No competition framing.
 
 ## Why
 
@@ -15,32 +15,61 @@ Strava is great at storing rides. It is not great at letting you do real analysi
 
 ## What it does
 
-1. Authenticates with Strava once via OAuth.
-2. Pulls new activities on demand or on a schedule.
-3. Downloads the original `.fit` file for each activity.
-4. Parses it and inserts summary, samples, and laps into SQLite.
-5. Dedupes by file hash so repeated syncs are safe.
+1. One-time OAuth authorization with Strava (`activity:read_all` scope).
+2. Pulls new activities incrementally (or full backfill) via the Strava API.
+3. For each activity, fetches the detail endpoint + the streams endpoint and writes into SQLite.
+4. Dedupes by Strava activity id, so repeated syncs are safe.
+5. Refreshes access tokens automatically when they expire.
 
 ## Status
 
-Early. Schema and ingestion first. Analysis tooling later.
+Working: OAuth, incremental + bounded sync, schema, ingestion of summary/streams/laps.
+
+Planned: full historical backfill with rate-limit-aware pacing, analysis CLI (EF, HR drift, time in zones), Whoop + Apple Health ingestion, FTP/HR-zone configuration.
 
 ## Setup
 
-See [`docs/setup.md`](docs/setup.md) (coming).
+```bash
+git clone https://github.com/dcmountainbiker/fit.git
+cd fit
+pip install -r requirements.txt
+```
 
-You will need:
-- Python 3.11+
-- A Strava API application (free, takes 2 minutes at https://www.strava.com/settings/api)
+Create a Strava API application at https://www.strava.com/settings/api:
+- Authorization Callback Domain: `localhost`
+- Website: this repo URL is fine.
+
+Put the credentials in `~/.config/fit/strava.env`:
+
+```
+STRAVA_CLIENT_ID=...
+STRAVA_CLIENT_SECRET=...
+```
+
+Run the one-time OAuth flow (opens a localhost listener, prints an authorize URL):
+
+```bash
+python3 src/strava_oauth.py
+```
+
+Then sync:
+
+```bash
+python3 -m src.sync --limit 10   # last 10 activities
+python3 -m src.sync                # incremental since last sync
+python3 -m src.sync --full         # full historical backfill
+```
+
+The SQLite database lives at `data/fit.db`. Query it with any tool.
 
 ## Schema
 
 See [`sql/schema.sql`](sql/schema.sql).
 
-Three core tables:
-- `rides` — one row per activity, with summary metrics.
-- `ride_samples` — per-second telemetry.
-- `ride_laps` — lap splits when the device recorded them.
+- `rides` — one row per activity, with summary metrics (date, duration, distance, avg/max HR, avg/max/normalized power, elevation gain, cadence, temperature, etc.).
+- `ride_samples` — per-second telemetry (timestamp, lat, lon, altitude, distance, speed, hr, power, cadence, temperature, grade).
+- `ride_laps` — lap splits as Strava represents them.
+- `sync_state` — sync bookkeeping.
 
 ## License
 
@@ -50,6 +79,6 @@ MIT. See [LICENSE](LICENSE).
 
 - No leaderboards.
 - No social features.
-- No "you crushed it" notifications.
+- No competition framing.
 
 This is a personal data tool. Use it however you want.
